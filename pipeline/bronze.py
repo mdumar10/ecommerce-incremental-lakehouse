@@ -10,21 +10,35 @@ from pipeline.connection import (
 )
 
 
-CONFIG_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "config"
-    / "tables.yml"
-)
+def load_config(dbutils):
 
+    notebook_path = (
+        dbutils.notebook
+        .getContext()
+        .notebookPath()
+        .get()
+    )
 
-def load_config():
-    with open(CONFIG_PATH, "r") as file:
+    repo_root = (
+        Path("/Workspace" + notebook_path)
+        .parents[1]
+    )
+
+    config_path = (
+        repo_root
+        / "config"
+        / "tables.yml"
+    )
+
+    with open(config_path, "r") as file:
         return yaml.safe_load(file)
 
 
 def table_exists(spark, table_name):
 
-    return spark.catalog.tableExists(table_name)
+    return spark.catalog.tableExists(
+        table_name
+    )
 
 
 def build_source_query(
@@ -51,7 +65,10 @@ def write_incremental_bronze(
     watermark_column
 ):
 
-    if not table_exists(spark, bronze_table):
+    if not table_exists(
+        spark,
+        bronze_table
+    ):
 
         (
             df.write
@@ -72,7 +89,9 @@ def write_incremental_bronze(
         f"source.`{watermark_column}`"
     )
 
-    merge_condition = " AND ".join(match_conditions)
+    merge_condition = " AND ".join(
+        match_conditions
+    )
 
     target = DeltaTable.forName(
         spark,
@@ -105,7 +124,7 @@ def write_static_bronze(
 
 def run_bronze(spark, dbutils):
 
-    config = load_config()
+    config = load_config(dbutils)
 
     source_schema = config["source_schema"]
     bronze_schema = config["bronze_schema"]
@@ -114,8 +133,8 @@ def run_bronze(spark, dbutils):
         f"CREATE SCHEMA IF NOT EXISTS {bronze_schema}"
     )
 
-    jdbc_url, properties = get_postgres_connection(
-        dbutils
+    jdbc_url, properties = (
+        get_postgres_connection(dbutils)
     )
 
     for table_name, settings in config["tables"].items():
@@ -252,8 +271,6 @@ def run_bronze(spark, dbutils):
             )
 
     print("Bronze pipeline completed.")
-
-
 
 
 run_bronze(spark, dbutils)
