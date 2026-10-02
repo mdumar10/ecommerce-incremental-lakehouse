@@ -1,0 +1,56 @@
+source_schema: public
+
+bronze_schema: ecommerce.bronze
+
+tables:
+
+  customers:
+    load_type: incremental
+    keys:
+      - customer_id
+    watermark_column: updated_at
+
+  orders:
+    load_type: incremental
+    keys:
+      - order_id
+    watermark_column: updated_at
+
+  order_items:
+    load_type: incremental
+    keys:
+      - order_id
+      - order_item_id
+    watermark_column: updated_at
+
+  order_payments:
+    load_type: incremental
+    keys:
+      - order_id
+      - payment_sequential
+    watermark_column: updated_at
+
+  order_reviews:
+    load_type: incremental
+    keys:
+      - review_id
+    watermark_column: updated_at
+
+  geolocation:
+    load_type: static
+    keys: []
+
+  product_category_name_translation:
+    load_type: static
+    keys:
+      - product_category_name
+
+  products:
+    load_type: static
+    keys:
+      - product_id
+
+  sellers:
+    load_type: static
+    keys:
+      - seller_id
