@@ -252,3 +252,8 @@ def run_bronze(spark, dbutils):
             )
 
     print("Bronze pipeline completed.")
+
+
+
+
+run_bronze(spark, dbutils)
