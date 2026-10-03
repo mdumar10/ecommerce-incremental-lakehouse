@@ -1,3 +1,4 @@
+
 source_schema: public
 
 bronze_schema: ecommerce.bronze

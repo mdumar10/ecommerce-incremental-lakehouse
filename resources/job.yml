@@ -1,0 +1,13 @@
+resources:
+  jobs:
+    ecommerce_pipeline:
+
+      parameters:
+        - name: full_refresh
+          default: "false"
+
+      tasks:
+        - task_key: bronze
+
+          notebook_task:
+            notebook_path: ../notebooks/bronze.py

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import yaml
 from delta.tables import DeltaTable
 from pyspark.sql import functions as F
@@ -10,40 +8,25 @@ from pipeline.connection import (
 )
 
 
-CONFIG_PATH = (
-    Path.cwd().parent
-    / "config"
-    / "tables.yml"
-)
-
-
-def load_config():
-
-    with open(CONFIG_PATH, "r") as file:
+def load_config(config):
+    with open(config, "r") as file:
         return yaml.safe_load(file)
 
 
 def table_exists(spark, table_name):
-
     return spark.catalog.tableExists(table_name)
 
 
-def get_current_watermark(
-    spark,
-    bronze_table,
-    watermark_column
-):
+def get_current_watermark(spark, table_name, watermark_column):
+    existing_df = spark.table(table_name)
 
-    return (
-        spark.read
-        .table(bronze_table)
-        .select(
-            F.max(
-                F.col(watermark_column)
-            ).alias("watermark")
-        )
-        .first()["watermark"]
+    current_watermark = (
+        existing_df
+        .select(F.max(watermark_column))
+        .first()[0]
     )
+
+    return current_watermark
 
 
 def build_source_query(
@@ -52,7 +35,6 @@ def build_source_query(
     watermark_column,
     watermark
 ):
-
     return f"""
         (
             SELECT *
@@ -66,42 +48,19 @@ def merge_incremental_data(
     spark,
     df,
     bronze_table,
-    keys,
-    watermark_column
+    keys
 ):
-
-    if not table_exists(
+    target = DeltaTable.forName(
         spark,
         bronze_table
-    ):
-
-        (
-            df.write
-            .format("delta")
-            .mode("overwrite")
-            .saveAsTable(bronze_table)
-        )
-
-        return
+    )
 
     conditions = [
         f"target.`{key}` = source.`{key}`"
         for key in keys
     ]
 
-    conditions.append(
-        f"target.`{watermark_column}` = "
-        f"source.`{watermark_column}`"
-    )
-
-    merge_condition = " AND ".join(
-        conditions
-    )
-
-    target = DeltaTable.forName(
-        spark,
-        bronze_table
-    )
+    merge_condition = " AND ".join(conditions)
 
     (
         target.alias("target")
@@ -109,135 +68,30 @@ def merge_incremental_data(
             df.alias("source"),
             merge_condition
         )
+        .whenMatchedUpdateAll()
         .whenNotMatchedInsertAll()
         .execute()
     )
 
 
-def write_static_data(
-    df,
-    bronze_table
-):
+def run_bronze(spark, dbutils, config, full_refresh=False):
 
-    (
-        df.write
-        .format("delta")
-        .mode("overwrite")
-        .saveAsTable(bronze_table)
-    )
+    config = load_config(config)
 
-
-def run_bronze(spark, dbutils):
-
-    config = load_config()
+    jdbc_url, properties = get_postgres_connection(dbutils)
 
     source_schema = config["source_schema"]
     bronze_schema = config["bronze_schema"]
-
-    spark.sql(
-        f"CREATE SCHEMA IF NOT EXISTS {bronze_schema}"
-    )
-
-    jdbc_url, properties = (
-        get_postgres_connection(dbutils)
-    )
 
     for table_name, settings in config["tables"].items():
 
         load_type = settings["load_type"]
         keys = settings["keys"]
-        watermark_column = settings.get(
-            "watermark_column"
-        )
+        watermark_column = settings.get("watermark_column")
 
-        bronze_table = (
-            f"{bronze_schema}.{table_name}"
-        )
+        bronze_table = f"{bronze_schema}.{table_name}"
 
-        print(
-            f"Starting Bronze load: {table_name}"
-        )
-
-        if load_type == "incremental":
-
-            if table_exists(
-                spark,
-                bronze_table
-            ):
-
-                current_watermark = (
-                    get_current_watermark(
-                        spark,
-                        bronze_table,
-                        watermark_column
-                    )
-                )
-
-            else:
-
-                current_watermark = None
-
-            if current_watermark is None:
-
-                df = read_postgres_table(
-                    spark,
-                    f"{source_schema}.{table_name}",
-                    jdbc_url,
-                    properties
-                )
-
-            else:
-
-                query = build_source_query(
-                    source_schema,
-                    table_name,
-                    watermark_column,
-                    current_watermark
-                )
-
-                df = read_postgres_table(
-                    spark,
-                    query,
-                    jdbc_url,
-                    properties
-                )
-
-            if df.isEmpty():
-
-                print(
-                    f"No new changes: {table_name}"
-                )
-
-                continue
-
-            rows_read = df.count()
-
-            merge_incremental_data(
-                spark,
-                df,
-                bronze_table,
-                keys,
-                watermark_column
-            )
-
-            print(
-                f"Bronze complete: {table_name} "
-                f"| rows read = {rows_read}"
-            )
-
-        elif load_type == "static":
-
-            if table_exists(
-                spark,
-                bronze_table
-            ):
-
-                print(
-                    f"Static table already loaded: "
-                    f"{table_name}"
-                )
-
-                continue
+        if full_refresh or not table_exists(spark, bronze_table):
 
             df = read_postgres_table(
                 spark,
@@ -246,34 +100,52 @@ def run_bronze(spark, dbutils):
                 properties
             )
 
-            if df.isEmpty():
-
-                print(
-                    f"No data found: {table_name}"
-                )
-
-                continue
-
-            rows_read = df.count()
-
-            write_static_data(
-                df,
-                bronze_table
+            (
+                df.write
+                .format("delta")
+                .mode("overwrite")
+                .saveAsTable(bronze_table)
             )
 
-            print(
-                f"Bronze complete: {table_name} "
-                f"| rows read = {rows_read}"
+        elif load_type == "incremental":
+
+            watermark = get_current_watermark(
+                spark,
+                bronze_table,
+                watermark_column
+            )
+
+            query = build_source_query(
+                source_schema,
+                table_name,
+                watermark_column,
+                watermark
+            )
+
+            df = read_postgres_table(
+                spark,
+                query,
+                jdbc_url,
+                properties
+            )
+
+            merge_incremental_data(
+                spark,
+                df,
+                bronze_table,
+                keys
             )
 
         else:
-
-            raise ValueError(
-                f"Unknown load_type '{load_type}' "
-                f"for table '{table_name}'"
-            )
-
-    print("Bronze pipeline completed.")
+            pass
 
 
-run_bronze(spark, dbutils)
+
+config = "config/tables.yml"
+full_refresh = dbutils.widgets.get("full_refresh").lower() == "true"
+run_bronze(
+    spark,
+    dbutils,
+    config,
+    full_refresh
+)
