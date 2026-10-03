@@ -10,34 +10,39 @@ from pipeline.connection import (
 )
 
 
-def load_config(dbutils):
+CONFIG_PATH = (
+    Path.cwd().parent
+    / "config"
+    / "tables.yml"
+)
 
-    notebook_path = (
-        dbutils.notebook
-        .getContext()
-        .notebookPath()
-        .get()
-    )
 
-    repo_root = (
-        Path("/Workspace" + notebook_path)
-        .parents[1]
-    )
+def load_config():
 
-    config_path = (
-        repo_root
-        / "config"
-        / "tables.yml"
-    )
-
-    with open(config_path, "r") as file:
+    with open(CONFIG_PATH, "r") as file:
         return yaml.safe_load(file)
 
 
 def table_exists(spark, table_name):
 
-    return spark.catalog.tableExists(
-        table_name
+    return spark.catalog.tableExists(table_name)
+
+
+def get_current_watermark(
+    spark,
+    bronze_table,
+    watermark_column
+):
+
+    return (
+        spark.read
+        .table(bronze_table)
+        .select(
+            F.max(
+                F.col(watermark_column)
+            ).alias("watermark")
+        )
+        .first()["watermark"]
     )
 
 
@@ -57,7 +62,7 @@ def build_source_query(
     """
 
 
-def write_incremental_bronze(
+def merge_incremental_data(
     spark,
     df,
     bronze_table,
@@ -79,18 +84,18 @@ def write_incremental_bronze(
 
         return
 
-    match_conditions = [
+    conditions = [
         f"target.`{key}` = source.`{key}`"
         for key in keys
     ]
 
-    match_conditions.append(
+    conditions.append(
         f"target.`{watermark_column}` = "
         f"source.`{watermark_column}`"
     )
 
     merge_condition = " AND ".join(
-        match_conditions
+        conditions
     )
 
     target = DeltaTable.forName(
@@ -109,7 +114,7 @@ def write_incremental_bronze(
     )
 
 
-def write_static_bronze(
+def write_static_data(
     df,
     bronze_table
 ):
@@ -124,7 +129,7 @@ def write_static_bronze(
 
 def run_bronze(spark, dbutils):
 
-    config = load_config(dbutils)
+    config = load_config()
 
     source_schema = config["source_schema"]
     bronze_schema = config["bronze_schema"]
@@ -161,17 +166,15 @@ def run_bronze(spark, dbutils):
             ):
 
                 current_watermark = (
-                    spark.read
-                    .table(bronze_table)
-                    .select(
-                        F.max(
-                            F.col(watermark_column)
-                        ).alias("watermark")
+                    get_current_watermark(
+                        spark,
+                        bronze_table,
+                        watermark_column
                     )
-                    .first()["watermark"]
                 )
 
             else:
+
                 current_watermark = None
 
             if current_watermark is None:
@@ -209,7 +212,7 @@ def run_bronze(spark, dbutils):
 
             rows_read = df.count()
 
-            write_incremental_bronze(
+            merge_incremental_data(
                 spark,
                 df,
                 bronze_table,
@@ -253,7 +256,7 @@ def run_bronze(spark, dbutils):
 
             rows_read = df.count()
 
-            write_static_bronze(
+            write_static_data(
                 df,
                 bronze_table
             )
