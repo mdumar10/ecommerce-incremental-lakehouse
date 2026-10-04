@@ -1,4 +1,3 @@
-import argparse
 
 
 import yaml
@@ -17,7 +16,13 @@ def load_config(config):
 
 
 def table_exists(spark, table_name):
-    return spark.catalog.tableExists(table_name)
+    try:
+        spark.table(table_name).limit(1).collect()
+        return True
+    except Exception as e:
+        if "TABLE_OR_VIEW_NOT_FOUND" in str(e):
+            return False
+        raise
 
 
 def get_current_watermark(spark, table_name, watermark_column):
@@ -144,22 +149,13 @@ def run_bronze(spark, dbutils, config):
 
 
 
+config = "../config/tables.yml"
 
-if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True)
+run_bronze(
+    spark,
+    dbutils,
+    config
+)
 
-    args = parser.parse_args()
 
-    from pyspark.sql import SparkSession
-    from pyspark.dbutils import DBUtils
-
-    spark = SparkSession.builder.getOrCreate()
-    dbutils = DBUtils(spark)
-
-    run_bronze(
-        spark,
-        dbutils,
-        args.config
-    )
