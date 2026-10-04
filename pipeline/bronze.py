@@ -74,7 +74,7 @@ def merge_incremental_data(
     )
 
 
-def run_bronze(spark, dbutils, config, full_refresh=False):
+def run_bronze(spark, dbutils, config):
 
     config = load_config(config)
 
@@ -91,7 +91,7 @@ def run_bronze(spark, dbutils, config, full_refresh=False):
 
         bronze_table = f"{bronze_schema}.{table_name}"
 
-        if full_refresh or not table_exists(spark, bronze_table):
+        if  not table_exists(spark, bronze_table):
 
             df = read_postgres_table(
                 spark,
@@ -142,10 +142,3 @@ def run_bronze(spark, dbutils, config, full_refresh=False):
 
 
 config = "config/tables.yml"
-full_refresh = dbutils.widgets.get("full_refresh").lower() == "true"
-run_bronze(
-    spark,
-    dbutils,
-    config,
-    full_refresh
-)
