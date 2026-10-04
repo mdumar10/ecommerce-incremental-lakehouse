@@ -1,3 +1,6 @@
+import argparse
+
+
 import yaml
 from delta.tables import DeltaTable
 from pyspark.sql import functions as F
@@ -141,4 +144,22 @@ def run_bronze(spark, dbutils, config):
 
 
 
-config = "config/tables.yml"
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True)
+
+    args = parser.parse_args()
+
+    from pyspark.sql import SparkSession
+    from pyspark.dbutils import DBUtils
+
+    spark = SparkSession.builder.getOrCreate()
+    dbutils = DBUtils(spark)
+
+    run_bronze(
+        spark,
+        dbutils,
+        args.config
+    )
