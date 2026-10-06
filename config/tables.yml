@@ -55,3 +55,25 @@ tables:
     load_type: static
     keys:
       - seller_id
+
+
+
+
+silver_schema: ecommerce.silver
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
