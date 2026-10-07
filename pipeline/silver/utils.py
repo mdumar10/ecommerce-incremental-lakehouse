@@ -19,12 +19,11 @@ def get_current_watermark(
         .first()[0]
     )
 
-
 def write_quarantine(
     spark,
     df,
     table_name,
-    key_column
+    merge_condition
 ):
 
     if not df.take(1):
@@ -50,7 +49,7 @@ def write_quarantine(
             target.alias("target")
             .merge(
                 df.alias("source"),
-                f"target.{key_column} = source.{key_column}"
+                merge_condition
             )
             .whenMatchedUpdateAll()
             .whenNotMatchedInsertAll()
