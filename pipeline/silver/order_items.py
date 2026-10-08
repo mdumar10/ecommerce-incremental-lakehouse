@@ -1,5 +1,5 @@
 from delta.tables import DeltaTable
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, when
 
 from pipeline.silver.utils import (
     table_exists,
@@ -19,15 +19,42 @@ def transform_order_items(df):
 def check_order_items(df):
 
     return (
-        (col("order_id").isNull()) |
-        (col("order_item_id").isNull()) |
-        (col("product_id").isNull()) |
-        (col("seller_id").isNull()) |
-        (col("shipping_limit_date").isNull()) |
-        (col("price").isNull()) |
-        (col("freight_value").isNull()) |
-        (col("price") < 0) |
-        (col("freight_value") < 0)
+        when(
+            col("order_id").isNull(),
+            "missing_order_id"
+        )
+        .when(
+            col("order_item_id").isNull(),
+            "missing_order_item_id"
+        )
+        .when(
+            col("product_id").isNull(),
+            "missing_product_id"
+        )
+        .when(
+            col("seller_id").isNull(),
+            "missing_seller_id"
+        )
+        .when(
+            col("shipping_limit_date").isNull(),
+            "missing_shipping_limit_date"
+        )
+        .when(
+            col("price").isNull(),
+            "missing_price"
+        )
+        .when(
+            col("freight_value").isNull(),
+            "missing_freight_value"
+        )
+        .when(
+            col("price") < 0,
+            "negative_price"
+        )
+        .when(
+            col("freight_value") < 0,
+            "negative_freight_value"
+        )
     )
 
 
@@ -54,14 +81,22 @@ def run_order_items(spark):
             .filter(col("updated_at") >= watermark)
         )
 
+    # Normal transformation
     df = transform_order_items(df)
 
+    # Order items quality rules
     check = check_order_items(df)
 
-    invalid = df.filter(check)
+    # Separate invalid and valid rows
+    invalid = (
+        df
+        .filter(check.isNotNull())
+        .withColumn("quarantine_reason", check)
+    )
 
-    valid = df.filter(~check)
+    valid = df.filter(check.isNull())
 
+    # Invalid rows → Quarantine
     write_quarantine(
         spark,
         invalid,
@@ -72,6 +107,7 @@ def run_order_items(spark):
         """
     )
 
+    # Valid rows → Silver
     if not silver_exists:
 
         (
