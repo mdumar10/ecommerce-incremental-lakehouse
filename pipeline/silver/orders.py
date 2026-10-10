@@ -21,6 +21,11 @@ def check_orders(df):
 
     return (
         when(
+            (col("order_status") == "delivered") &
+            col("order_delivered_customer_date").isNull(),
+            "delivered_order_missing_delivery_date"
+        )
+        .when(
             col("order_delivered_carrier_date") <
             col("order_purchase_timestamp"),
             "carrier_before_purchase"
@@ -72,16 +77,16 @@ def run_orders(spark):
     valid = df.filter(check.isNull())
 
     # Invalid rows → Quarantine
+    # Invalid rows → Quarantine
     write_quarantine(
         spark,
         invalid,
         "ecommerce.quarantine.orders",
-        "order_id"
+        "target.order_id = source.order_id"
     )
 
     # Valid rows → Silver
     if not silver_exists:
-
         (
             valid.write
             .format("delta")
