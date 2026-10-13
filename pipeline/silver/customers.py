@@ -112,5 +112,7 @@ def run_customers(spark):
             .execute()
         )
 
+if __name__ == "__main__":
+    run_customers(spark)
 
-run_customers(spark)
+

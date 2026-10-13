@@ -97,8 +97,8 @@ def run_orders(spark):
             .execute()
         )
 
-
-run_orders(spark)
+if __name__ == "__main__":
+    run_orders(spark)
 
 
 

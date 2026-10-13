@@ -107,5 +107,5 @@ def run_order_payments(spark):
             .execute()
         )
 
-
-run_order_payments(spark)
+if __name__ == "__main__":
+    run_order_payments(spark)

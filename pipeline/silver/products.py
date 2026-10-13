@@ -92,5 +92,5 @@ def run_products(spark):
         .saveAsTable(silver_table)
     )
 
-
-run_products(spark)
+if __name__ == "__main__":
+    run_products(spark)

@@ -83,25 +83,19 @@ def run_fact_orders(spark):
     )
 
 
-run_fact_orders(spark)
+if __name__ == "__main__":
+    run_fact_orders(spark)
 
-display(spark.sql("""
-    SELECT
-        (SELECT COUNT(*)
-         FROM ecommerce.gold.customer_summary) AS total_customers,
 
-        (SELECT COUNT(DISTINCT customer_id)
-         FROM ecommerce.gold.customer_summary) AS distinct_customers,
 
-        (SELECT SUM(order_count)
-         FROM ecommerce.gold.customer_summary) AS summarized_orders,
 
-        (SELECT COUNT(*)
-         FROM ecommerce.gold.fact_orders) AS fact_order_rows,
 
-        (SELECT SUM(total_product_value)
-         FROM ecommerce.gold.customer_summary) AS customer_product_total,
 
-        (SELECT SUM(total_product_value)
-         FROM ecommerce.gold.fact_orders) AS fact_product_total
-"""))
+
+
+
+
+
+
+
+

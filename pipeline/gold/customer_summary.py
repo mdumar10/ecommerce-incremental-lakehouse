@@ -52,5 +52,6 @@ def run_customer_summary(spark):
         .saveAsTable("ecommerce.gold.customer_summary")
     )
 
+if __name__ == "__main__":
+    run_customer_summary(spark)
 
-run_customer_summary(spark)

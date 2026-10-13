@@ -27,5 +27,5 @@ def run_sellers(spark):
         .saveAsTable(silver_table)
     )
 
-
-run_sellers(spark)
+if __name__ == "__main__":
+    run_sellers(spark)

@@ -33,5 +33,5 @@ def run_product_category_name_translation(spark):
         .saveAsTable(silver_table)
     )
 
-
-run_product_category_name_translation(spark)
+if __name__ == "__main__":
+    run_product_category_name_translation(spark)

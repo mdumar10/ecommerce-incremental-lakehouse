@@ -54,5 +54,5 @@ def run_product_summary(spark):
         .saveAsTable("ecommerce.gold.product_summary")
     )
 
-
-run_product_summary(spark)
+if __name__ == "__main__":
+    run_product_summary(spark)

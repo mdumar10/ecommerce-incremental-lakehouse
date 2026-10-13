@@ -152,9 +152,11 @@ def run_bronze(spark, dbutils, config):
 config = "../config/tables.yml"
 
 
-run_bronze(
-    spark,
-    dbutils,
-    config
-)
+if __name__ == "__main__":
+    config = "../config/tables.yml"
 
+    run_bronze(
+        spark,
+        dbutils,
+        config
+    )

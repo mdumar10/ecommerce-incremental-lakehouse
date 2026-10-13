@@ -114,5 +114,6 @@ def run_order_reviews(spark):
             .execute()
         )
 
-
-run_order_reviews(spark)
+if __name__ == "__main__":
+    
+    run_order_reviews(spark)
