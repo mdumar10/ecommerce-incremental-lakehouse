@@ -1,3 +1,4 @@
+
 from delta.tables import DeltaTable
 from pyspark.sql.functions import col, trim, when
 
@@ -19,22 +20,11 @@ def transform_orders(df):
 
 def check_orders(df):
 
-    return (
-        when(
-            (col("order_status") == "delivered") &
-            col("order_delivered_customer_date").isNull(),
-            "delivered_order_missing_delivery_date"
-        )
-        .when(
-            col("order_delivered_carrier_date") <
-            col("order_purchase_timestamp"),
-            "carrier_before_purchase"
-        )
-        .when(
-            col("order_delivered_customer_date") <
-            col("order_delivered_carrier_date"),
-            "delivery_before_carrier"
-        )
+    # A missing primary key makes the order unusable.
+    # Timestamp anomalies alone do not invalidate the order.
+    return when(
+        col("order_id").isNull(),
+        "missing_order_id"
     )
 
 
@@ -61,13 +51,10 @@ def run_orders(spark):
             .filter(col("updated_at") >= watermark)
         )
 
-    # Normal transformation
     df = transform_orders(df)
-
 
     check = check_orders(df)
 
-    # Separate valid and invalid rows
     invalid = (
         df
         .filter(check.isNotNull())
@@ -76,17 +63,15 @@ def run_orders(spark):
 
     valid = df.filter(check.isNull())
 
-    # Invalid rows → Quarantine
-    # Invalid rows → Quarantine
     write_quarantine(
         spark,
         invalid,
         "ecommerce.quarantine.orders",
-        "target.order_id = source.order_id"
+        "target.order_id <=> source.order_id"
     )
 
-    # Valid rows → Silver
     if not silver_exists:
+
         (
             valid.write
             .format("delta")
