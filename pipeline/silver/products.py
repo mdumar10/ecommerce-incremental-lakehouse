@@ -82,7 +82,7 @@ def run_products(spark):
         spark,
         invalid,
         "ecommerce.quarantine.products",
-        "product_id"
+        "target.product_id = source.product_id"
     )
 
     (

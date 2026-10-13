@@ -81,7 +81,7 @@ def run_customers(spark):
         spark,
         invalid,
         "ecommerce.quarantine.customers",
-        "customer_id"
+        "target.customer_id = source.customer_id"
     )
 
     # Valid rows → Silver
